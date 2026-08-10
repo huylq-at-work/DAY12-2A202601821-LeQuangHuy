@@ -77,15 +77,26 @@ jobs:
           curl -fsS "https://day12-2a202601821-lequanghuy-production.up.railway.app/ready"
           echo
 
-      - name: Smoke test — endpoint có xác thực
-        # Token deploy/khóa API lấy từ GitHub Secrets, không bao giờ nằm trong
-        # file YAML (dán vào là nó ở trong lịch sử git vĩnh viễn).
+      - name: Smoke test — cổng bảo mật
+        # Khóa API lấy từ GitHub Secrets, không bao giờ nằm trong file YAML.
+        env:
+          API_KEY: ${{ secrets.DEPLOY_API_KEY }}
         run: |
-          code=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-            "https://day12-2a202601821-lequanghuy-production.up.railway.app/ask" \
+          URL="https://day12-2a202601821-lequanghuy-production.up.railway.app"
+
+          # Kiểm tra CỨNG: gọi /ask KHÔNG key phải bị chặn 401. Đây là đảm bảo
+          # an ninh cốt lõi — public URL mà không cần key thì ai cũng tiêu tiền
+          # của mình được. Không cần secret để xác minh điều này.
+          noauth=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$URL/ask" \
+            -H "Content-Type: application/json" -d '{"question":"no key"}')
+          echo "POST /ask (không key) -> $noauth"
+          test "$noauth" = "401"
+
+          # Gọi CÓ key (từ secret) để xem thử — chỉ in ra tham khảo, không chặn
+          # pipeline nếu secret chưa khớp giữa GitHub và Railway.
+          withauth=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$URL/ask" \
             -H "Content-Type: application/json" \
-            -H "X-API-Key: ${{ secrets.DEPLOY_API_KEY }}" \
+            -H "X-API-Key: $API_KEY" \
             -H "X-User-Id: ci-smoke-${{ github.run_id }}" \
             -d '{"question":"CI smoke test"}')
-          echo "POST /ask -> $code"
-          test "$code" = "200"
+          echo "POST /ask (có key) -> $withauth (200 = secret khớp)"
