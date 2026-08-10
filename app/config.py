@@ -40,9 +40,17 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # TODO (CP1): khai báo 6 trường theo bảng trên, ví dụ:
-    #     port: int = 8000
-    #     agent_api_key: str
+    # Cổng HTTP. Cloud tự set biến PORT nên không được hardcode ở nơi khác.
+    port: int = 8000
+
+    # Không có mặc định: thiếu biến môi trường là app chết ngay lúc khởi động,
+    # thay vì âm thầm chạy với một khóa mà cả lớp đều biết.
+    agent_api_key: str
+
+    redis_url: str = "redis://localhost:6379/0"
+    rate_limit_per_minute: int = 10
+    monthly_budget_usd: float = 10.0
+    log_level: str = "INFO"
 
 
 @lru_cache(maxsize=1)
