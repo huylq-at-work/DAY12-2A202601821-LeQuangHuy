@@ -1,34 +1,57 @@
 # ═══════════════════════════════════════════════════════════════════
-# CP2 — Containerization
+# CP2 — Containerization (bản production-ready)
 #
-# Dưới đây là Dockerfile "chạy được nhưng chưa production": một stage,
-# chạy bằng user root, không có health check, base image nặng.
-#
-# NHIỆM VỤ: sửa file này thành bản production-ready. Yêu cầu:
-#   [ ] Multi-stage build: stage `builder` cài dependency, stage runtime
-#       chỉ copy kết quả sang → image nhỏ hơn, không mang theo compiler.
-#       Cú pháp: `FROM python:3.11-slim AS builder`
-#   [ ] Base image slim (hoặc alpine), không dùng `python:3.11` bản đầy đủ
-#   [ ] COPY requirements.txt và pip install TRƯỚC khi COPY source code
-#       (Docker cache theo layer: sửa 1 dòng code không phải cài lại thư viện)
-#   [ ] Tạo user thường và chuyển sang bằng lệnh `USER` — container chạy
-#       root nghĩa là ai thoát được khỏi app cũng thành root trên host
-#   [ ] Có `HEALTHCHECK` gọi vào endpoint /health
-#   [ ] Đọc cổng từ biến môi trường PORT (cloud tự gán cổng, không cố định 8000)
-#
-# Kiểm tra:  pytest tests/test_cp2.py -v
 # Build thử: docker build -t day12-agent:prod .
-#            docker images day12-agent:prod     # xem dung lượng
+#            docker images day12-agent:prod
 # ═══════════════════════════════════════════════════════════════════
 
-FROM python:3.11
+# ── Stage 1: builder ──────────────────────────────────────────────
+# Stage này được phép "bẩn": có compiler, có cache pip, có file tạm.
+# Không thứ nào trong đó đi sang image cuối.
+FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
-COPY . .
+# COPY requirements.txt riêng, TRƯỚC source code: layer pip install chỉ bị
+# dựng lại khi file này đổi, không phải mỗi lần sửa một dòng code.
+COPY requirements.txt .
 
-RUN pip install -r requirements.txt
+# --prefix=/install gom toàn bộ thư viện vào một thư mục để copy sang runtime.
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+
+
+# ── Stage 2: runtime ──────────────────────────────────────────────
+FROM python:3.11-slim AS runtime
+
+# PYTHONDONTWRITEBYTECODE: không sinh .pyc trong container (chỉ tổ phình FS)
+# PYTHONUNBUFFERED: log ra stdout ngay, không kẹt trong buffer khi bị SIGKILL
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PORT=8000
+
+WORKDIR /app
+
+# Chỉ mang thư viện đã cài sang — không mang pip cache, không mang compiler.
+COPY --from=builder /install /usr/local
+
+# Source code copy sau cùng: đây là thứ đổi thường xuyên nhất, để ở layer cuối
+# thì các layer nặng phía trên vẫn được cache.
+COPY app/ ./app/
+COPY utils/ ./utils/
+
+# User thường, không có shell đăng nhập. Thoát được khỏi app cũng không thành
+# root trên host. Đặt SAU khi copy để không phải chỉnh quyền lằng nhằng.
+RUN useradd --create-home --shell /usr/sbin/nologin appuser \
+    && chown -R appuser:appuser /app
+USER appuser
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Không có curl trong image slim — dùng chính Python đã có sẵn.
+# Gọi /health (liveness), không gọi /ready: Redis chết không phải lý do
+# để Docker giết container này.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('PORT','8000') + '/health').read()" || exit 1
+
+# Shell form để $PORT được nội suy — cloud tự gán cổng, không cố định 8000.
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT}
