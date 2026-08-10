@@ -18,7 +18,7 @@
 
 | Mục | Nội dung |
 |-----|----------|
-| Public URL | https://REPLACE-voi-domain-that.up.railway.app |
+| Public URL | https://day12-2a202601821-lequanghuy-production.up.railway.app |
 | Platform | Railway |
 | Ngày deploy | 2026-08-10 |
 
@@ -73,7 +73,25 @@ done; echo
 Dán output của các lệnh trên vào đây:
 
 ```
-[CHẠY 5 LỆNH Ở TRÊN SAU KHI DEPLOY XONG RỒI DÁN OUTPUT VÀO ĐÂY]
+# 1. /health
+HTTP 200
+{"status":"ok","service":"day12-agent","version":"1.0.0"}
+
+# 2. /ready  (đã nối được Redis trên cloud)
+HTTP 200
+{"status":"ready","redis":true}
+
+# 3. /ask không API key
+HTTP 401
+
+# 4. /ask có API key
+{"answer":"Ngắn gọn: Deploy la gi phụ thuộc vào ba yếu tố — cấu hình qua biến
+môi trường, health check để orchestrator biết trạng thái, và giới hạn tài
+nguyên.","user_id":"cp5-test","history_length":0,"cost_usd":2.265e-05,
+"tokens":{"in":3,"out":37}}
+
+# 5. Rate limit — 15 request liên tiếp (hạn mức 10/phút)
+200 200 200 200 200 200 200 200 200 200 429 429 429 429 429
 ```
 
 ## Ảnh Chụp Màn Hình

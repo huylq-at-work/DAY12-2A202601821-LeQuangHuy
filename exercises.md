@@ -236,16 +236,20 @@ Ghi lại **một** lỗi bạn gặp khi deploy lên cloud (build fail, health 
 timeout, sai REDIS_URL, app không đọc `$PORT`...): thông báo lỗi là gì, bạn
 tìm ra nguyên nhân bằng cách nào, và sửa ra sao?
 
-> [[CÂU NÀY PHẢI VIẾT SAU KHI DEPLOY THẬT Ở CP5 — ghi lỗi bạn thực sự gặp.
-> Dưới đây là một ví dụ mẫu để bạn hình dung định dạng, ĐỪNG nộp nguyên văn]]
->
-> Ví dụ mẫu — lỗi app không đọc `$PORT`:
-> - **Thông báo lỗi:** Railway build xong nhưng deploy fail, health check timeout;
->   log ghì `uvicorn running on http://0.0.0.0:8000` trong khi Railway cấp cổng
->   động (ví dụ 6543) và gọi health check vào cổng đó → không có ai trả lời.
-> - **Tìm nguyên nhân:** đọc log deploy thấy uvicorn bind cứng 8000, đối chiếu
->   với biến `PORT` mà Railway tự set trong dashboard → nhận ra `CMD` của tôi
->   viết `--port 8000` cố định thay vì đọc biến môi trường.
-> - **Sửa:** đổi `CMD` sang dạng shell để `$PORT` được nội suy
->   (`uvicorn app.main:app --host 0.0.0.0 --port ${PORT}`), và để `railway.toml`
->   dùng `startCommand` với `$PORT`. Deploy lại → health check xanh.
+> Tôi deploy lên Railway và gặp lỗi ở giai đoạn chạy container (build đã xong):
+> - **Thông báo lỗi:** trong deploy log, container khởi động rồi crash ngay với
+>   `Error: Invalid value for '--port': '$PORT' is not a valid integer.`, lặp lại
+>   nhiều lần (Railway restart theo restartPolicy).
+> - **Tìm nguyên nhân:** chuỗi `$PORT` xuất hiện *nguyên văn* trong thông báo lỗi
+>   thay vì một con số → nghĩa là nó không được nội suy. `railway.toml` của tôi
+>   đặt `startCommand = "uvicorn app.main:app --host 0.0.0.0 --port $PORT"`, và
+>   Railway chạy lệnh này **không qua shell**, nên `$PORT` không được thay bằng
+>   cổng thật mà bị truyền thẳng cho uvicorn. uvicorn cần một số nguyên nên nó
+>   từ chối chuỗi `"$PORT"`.
+> - **Sửa:** bọc lệnh trong `sh -c` để bắt buộc chạy qua shell:
+>   `startCommand = "sh -c 'uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}'"`.
+>   Lúc này shell mới nội suy `$PORT` thành cổng Railway cấp; `${PORT:-8000}` là
+>   dự phòng dùng 8000 nếu biến chưa được set. Push commit, Railway deploy lại →
+>   `/health` trả 200, `/ready` trả `{"status":"ready","redis":true}`. Bài học:
+>   cổng phải đọc từ biến môi trường, và biến chỉ được nội suy khi lệnh chạy qua
+>   một shell thật.
