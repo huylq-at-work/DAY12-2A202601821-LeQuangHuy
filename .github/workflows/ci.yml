@@ -72,9 +72,9 @@ jobs:
       - name: Smoke test — liveness & readiness
         # curl -f trả mã lỗi khi HTTP không phải 2xx → job đỏ → biết ngay.
         run: |
-          curl -fsS "${{ vars.PUBLIC_URL }}/health"
+          curl -fsS "https://day12-2a202601821-lequanghuy-production.up.railway.app/health"
           echo
-          curl -fsS "${{ vars.PUBLIC_URL }}/ready"
+          curl -fsS "https://day12-2a202601821-lequanghuy-production.up.railway.app/ready"
           echo
 
       - name: Smoke test — endpoint có xác thực
@@ -82,7 +82,7 @@ jobs:
         # file YAML (dán vào là nó ở trong lịch sử git vĩnh viễn).
         run: |
           code=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-            "${{ vars.PUBLIC_URL }}/ask" \
+            "https://day12-2a202601821-lequanghuy-production.up.railway.app/ask" \
             -H "Content-Type: application/json" \
             -H "X-API-Key: ${{ secrets.DEPLOY_API_KEY }}" \
             -H "X-User-Id: ci-smoke-${{ github.run_id }}" \
