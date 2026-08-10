@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     monthly_budget_usd: float = 10.0
     log_level: str = "INFO"
 
+    # Số giây tối đa chờ các request đang chạy hoàn tất khi nhận SIGTERM (deploy
+    # bản mới). Nên đặt NHỎ HƠN thời gian orchestrator đợi trước khi SIGKILL
+    # (Railway/K8s ~30s), để bản cũ kịp drain xong và tự thoát êm.
+    shutdown_grace_seconds: int = 25
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

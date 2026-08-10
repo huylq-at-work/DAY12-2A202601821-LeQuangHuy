@@ -53,5 +53,10 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD python -c "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('PORT','8000') + '/health').read()" || exit 1
 
-# Shell form để $PORT được nội suy — cloud tự gán cổng, không cố định 8000.
-CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT}
+# `exec` là mấu chốt: nó thay thế tiến trình sh bằng uvicorn, nên uvicorn trở
+# thành PID 1 và nhận TRỰC TIẾP SIGTERM. Không có `exec`, sh là PID 1 và KHÔNG
+# chuyển tiếp tín hiệu cho con → uvicorn không drain, bị SIGKILL sau timeout.
+# Vẫn dùng sh -c để ${PORT} được nội suy (cloud tự gán cổng, không cố định 8000).
+# --timeout-graceful-shutdown: chờ request đang chạy xong rồi mới đóng, ràng
+# buộc dưới thời gian orchestrator đợi trước khi SIGKILL.
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --timeout-graceful-shutdown ${SHUTDOWN_GRACE_SECONDS:-25}"]

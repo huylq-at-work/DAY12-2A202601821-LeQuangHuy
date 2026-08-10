@@ -10,10 +10,12 @@ builder = "dockerfile"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-# Bọc trong `sh -c` để $PORT được shell nội suy thành cổng Railway cấp.
-# Không có shell thì uvicorn nhận nguyên chuỗi "$PORT" và crash.
+# Bọc trong `sh -c` để $PORT được shell nội suy thành cổng Railway cấp
+# (không có shell thì uvicorn nhận nguyên chuỗi "$PORT" và crash).
+# `exec` để uvicorn thay thế sh, trở thành PID 1 và nhận trực tiếp SIGTERM —
+# nếu không, sh nuốt tín hiệu và graceful shutdown không chạy khi deploy.
 # ${PORT:-8000}: có PORT thì dùng, không có thì mặc định 8000.
-startCommand = "sh -c 'uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}'"
+startCommand = "sh -c 'exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --timeout-graceful-shutdown ${SHUTDOWN_GRACE_SECONDS:-25}'"
 healthcheckPath = "/health"
 healthcheckTimeout = 30
 restartPolicyType = "on_failure"

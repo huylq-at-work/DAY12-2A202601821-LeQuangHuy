@@ -187,4 +187,11 @@ if __name__ == "__main__":
     import uvicorn
 
     settings = get_settings()
-    uvicorn.run(app, host="0.0.0.0", port=settings.port)
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=settings.port,
+        # Chờ tối đa ngần này giây cho request đang chạy xong rồi mới đóng —
+        # bản cũ không cắt ngang request của user khi deploy bản mới.
+        timeout_graceful_shutdown=settings.shutdown_grace_seconds,
+    )
